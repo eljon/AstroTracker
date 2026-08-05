@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0b1026" />
+  <meta name="description" content="Adam's Astronaut Tracker — a cartoon map of where astronauts are right now, floating above the Earth." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Astronaut Tracker" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%80%3C/text%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%80%3C/text%3E%3C/svg%3E" />
+  <title>Adam's Astronaut Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="stars" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <div class="title-wrap">
+      <span class="rocket" aria-hidden="true">🚀</span>
+      <div>
+        <h1>Adam's Astronaut Tracker</h1>
+        <p class="subtitle">Where are the humans in space right now?</p>
+      </div>
+    </div>
+    <div class="people-count" id="peopleCount" title="People currently in space">
+      <span class="count-num" id="countNum">–</span>
+      <span class="count-label">in space</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="map-card" aria-label="Cartoon world map showing astronaut locations">
+      <div class="map-shell">
+        <svg id="worldMap" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map">
+          <!-- Ocean -->
+          <rect x="0" y="0" width="360" height="180" fill="url(#ocean)" />
+          <defs>
+            <linearGradient id="ocean" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2a7fd4" />
+              <stop offset="100%" stop-color="#1a5aa8" />
+            </linearGradient>
+            <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#fff6c8" stop-opacity="0.9" />
+              <stop offset="100%" stop-color="#fff6c8" stop-opacity="0" />
+            </radialGradient>
+          </defs>
+          <!-- Cartoon continents (simplified blobs) -->
+          <g id="land" fill="#7ac77a" stroke="#5aa85a" stroke-width="0.8" stroke-linejoin="round"></g>
+          <!-- Orbit ground tracks -->
+          <g id="tracks" fill="none" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.7"></g>
+          <!-- Station markers get injected here -->
+          <g id="stations"></g>
+        </svg>
+      </div>
+      <div class="map-legend" id="mapLegend"></div>
+      <p class="estimate-note">✨ Positions are a friendly best-estimate cartoon, not exact real-time tracking.</p>
+    </section>
+
+    <section class="roster" aria-label="Astronaut roster">
+      <div class="roster-head">
+        <h2>Who's up there</h2>
+        <span class="updated" id="updatedAt"></span>
+      </div>
+      <ul id="astronautList" class="astro-list"></ul>
+    </section>
+  </main>
+
+  <!-- Astronaut detail sheet -->
+  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+  <aside class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="sheetName" hidden>
+    <button class="sheet-close" id="sheetClose" aria-label="Close">✕</button>
+    <div class="sheet-body" id="sheetBody"></div>
+  </aside>
+
+  <footer class="app-footer">
+    <p>Made for Adam · Keep looking up 🌙</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

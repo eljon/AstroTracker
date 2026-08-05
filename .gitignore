@@ -1,0 +1,7 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+
+# Local previews / build artifacts
+preview-*.png
+*.log
