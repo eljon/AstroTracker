@@ -1,52 +1,25 @@
 /*
  * Adam's Astronaut Tracker — app logic
  *
- * Draws a cartoon equirectangular world map (360 x 180 units, where
- * x = longitude + 180 and y = 90 - latitude), estimates where each space
- * station is floating right now with a simple orbit model, and lets you tap
- * an astronaut to see where their home in the sky is passing over.
+ * Draws a cartoon "you are in orbit" scene: the International Space Station up
+ * close as the star of the show, the curved edge of Earth peeking in below,
+ * and astronaut icons floating at their spots around each station. The whole
+ * scene can be pinched / scrolled / dragged to zoom in for a closer look.
  *
- * None of this is precise tracking — it's a playful best-guess cartoon.
+ * It also estimates where each station is currently passing over Earth with a
+ * simple orbit model — a playful best guess, not precise tracking.
  */
 
 (function () {
   "use strict";
 
   const SVGNS = "http://www.w3.org/2000/svg";
-  const EARTH_ROTATION_MIN = 1436; // sidereal day-ish, minutes for 360° spin
+  const EARTH_ROTATION_MIN = 1436; // minutes for Earth to spin 360°
+  const VB_W = 400, VB_H = 480;    // SVG viewBox size
 
-  /* --- Coordinate helpers (lon/lat -> map units) --- */
-  function lonToX(lon) { return lon + 180; }
-  function latToY(lat) { return 90 - lat; }
-
-  /*
-   * Cartoon continents. Rough hand-drawn blobs in [lon, lat] pairs — not
-   * geographically precise, just recognisable-ish shapes for a kid's map.
-   */
-  const CONTINENTS = [
-    // North America
-    [[-158,60],[-130,68],[-95,70],[-78,62],[-60,50],[-70,42],[-82,30],[-98,18],[-108,23],[-118,33],[-125,40],[-130,50],[-150,58]],
-    // South America
-    [[-80,10],[-62,8],[-50,0],[-38,-10],[-42,-24],[-58,-38],[-72,-52],[-75,-38],[-70,-20],[-78,-4]],
-    // Africa
-    [[-16,14],[-2,20],[12,30],[32,32],[44,12],[52,10],[48,-6],[38,-22],[26,-34],[18,-34],[10,-16],[-6,4]],
-    // Europe
-    [[-10,44],[0,52],[12,54],[28,58],[40,60],[30,46],[16,44],[2,40],[-8,38]],
-    // Asia
-    [[40,60],[70,70],[110,72],[150,68],[178,64],[160,52],[140,44],[122,32],[108,20],[92,22],[76,32],[54,40],[44,48]],
-    // India nub
-    [[68,28],[88,26],[84,10],[76,8],[70,18]],
-    // Southeast Asia / Indonesia
-    [[96,8],[118,6],[132,0],[122,-8],[104,-2],[98,2]],
-    // Australia
-    [[114,-18],[134,-14],[150,-20],[152,-34],[138,-38],[120,-34],[114,-24]],
-    // Greenland
-    [[-46,72],[-24,74],[-20,66],[-38,60],[-52,66]],
-    // Antarctica strip
-    [[-180,-78],[-120,-74],[-60,-76],[0,-74],[60,-76],[120,-74],[180,-78],[180,-90],[-180,-90]],
-  ];
-
-  /* Named regions for a friendly "flying over ___" label. Checked in order. */
+  /* ------------------------------------------------------------------ *
+   * Orbit estimate (used for the "currently over…" caption & the sheet) *
+   * ------------------------------------------------------------------ */
   const REGIONS = [
     { name: "North America", lon: [-168, -52], lat: [15, 72] },
     { name: "South America", lon: [-82, -34], lat: [-56, 12] },
@@ -58,7 +31,6 @@
     { name: "Antarctica", lon: [-180, 180], lat: [-90, -66] },
     { name: "the Arctic", lon: [-180, 180], lat: [66, 90] },
   ];
-
   const OCEANS = [
     { name: "the Pacific Ocean", lon: [-180, -80], lat: [-60, 60] },
     { name: "the Pacific Ocean", lon: [130, 180], lat: [-60, 60] },
@@ -66,119 +38,246 @@
     { name: "the Indian Ocean", lon: [52, 112], lat: [-56, 10] },
     { name: "the Southern Ocean", lon: [-180, 180], lat: [-66, -50] },
   ];
-
-  function inBox(lon, lat, box) {
-    return lon >= box.lon[0] && lon <= box.lon[1] && lat >= box.lat[0] && lat <= box.lat[1];
-  }
-
+  const inBox = (lon, lat, b) => lon >= b.lon[0] && lon <= b.lon[1] && lat >= b.lat[0] && lat <= b.lat[1];
   function describeLocation(lon, lat) {
     for (const r of REGIONS) if (inBox(lon, lat, r)) return "over " + r.name;
     for (const o of OCEANS) if (inBox(lon, lat, o)) return "over " + o.name;
     return "over the open ocean";
   }
-
-  /*
-   * Estimate the sub-satellite point (the spot on Earth directly below the
-   * station) at a given time. Latitude follows a sine wave bounded by the
-   * orbital inclination; longitude sweeps eastward each orbit while the Earth
-   * rotates beneath, producing the classic westward-drifting ground track.
-   */
   function estimatePosition(station, date) {
     const minutes = date.getTime() / 60000;
     const orbits = minutes / station.periodMin;
     const phase = orbits * 2 * Math.PI + station.phase;
-
     const lat = station.inclination * Math.sin(phase);
-
     const inertialLon = orbits * 360;
     const earthSpin = (minutes / EARTH_ROTATION_MIN) * 360;
     let lon = ((station.phase * 57.3) + inertialLon - earthSpin) % 360;
-    lon = ((lon + 180) % 360 + 360) % 360 - 180; // normalise to [-180, 180]
-
+    lon = ((lon + 180) % 360 + 360) % 360 - 180;
     return { lat, lon };
   }
 
-  /* --- Rendering --- */
-  const map = document.getElementById("worldMap");
-  const landG = document.getElementById("land");
-  const tracksG = document.getElementById("tracks");
-  const stationsG = document.getElementById("stations");
+  /* ------------------------------------------------------------------ *
+   * Scene building                                                      *
+   * ------------------------------------------------------------------ */
+  const scene = document.getElementById("spaceScene");
+  const sceneG = document.getElementById("sceneG");
+  const starLayer = document.getElementById("starLayer");
+  const continents = document.getElementById("continents");
+  const tetherLayer = document.getElementById("tetherLayer");
+  const astroLayer = document.getElementById("astroLayer");
+  const tiangongG = document.getElementById("tiangongG");
 
+  function el(name, attrs) {
+    const e = document.createElementNS(SVGNS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function drawStars() {
+    for (let i = 0; i < 70; i++) {
+      const x = Math.random() * VB_W;
+      const y = Math.random() * (VB_H * 0.62); // keep stars in the sky, not on Earth
+      const r = Math.random() * 1.2 + 0.3;
+      const s = el("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: r.toFixed(1), fill: "#fff" });
+      s.setAttribute("opacity", (Math.random() * 0.6 + 0.3).toFixed(2));
+      if (Math.random() > 0.7) { s.setAttribute("class", "twinkle"); s.style.animationDelay = (Math.random() * 3).toFixed(1) + "s"; }
+      starLayer.appendChild(s);
+    }
+  }
+
+  // A ring of cartoon landmass blobs sitting just inside Earth's visible edge.
   function drawContinents() {
-    for (const poly of CONTINENTS) {
-      const pts = poly.map(([lon, lat]) => `${lonToX(lon).toFixed(1)},${latToY(lat).toFixed(1)}`).join(" ");
-      const el = document.createElementNS(SVGNS, "polygon");
-      el.setAttribute("points", pts);
-      landG.appendChild(el);
+    const cx = 200, cy = 1010, r = 748; // just inside the Earth body radius
+    const blobs = [
+      { a: -128, w: 46, h: 30 }, { a: -96, w: 30, h: 22 }, { a: -70, w: 40, h: 26 },
+      { a: -40, w: 28, h: 20 }, { a: -8, w: 44, h: 30 }, { a: 24, w: 26, h: 18 },
+    ];
+    for (const b of blobs) {
+      const rad = (b.a * Math.PI) / 180;
+      const x = cx + r * Math.sin(rad);
+      const y = cy - r * Math.cos(rad);
+      const blob = el("path", { d: blobPath(x, y, b.w, b.h) });
+      continents.appendChild(blob);
+    }
+  }
+  // A lumpy rounded blob centred on (x,y).
+  function blobPath(x, y, w, h) {
+    return `M ${x - w},${y}
+      C ${x - w},${y - h} ${x - w * 0.3},${y - h * 1.2} ${x},${y - h}
+      C ${x + w * 0.5},${y - h * 0.8} ${x + w},${y - h * 0.5} ${x + w},${y}
+      C ${x + w},${y + h * 0.8} ${x + w * 0.3},${y + h * 1.1} ${x},${y + h * 0.7}
+      C ${x - w * 0.5},${y + h} ${x - w},${y + h * 0.6} ${x - w},${y} Z`;
+  }
+
+  // A little cartoon Tiangong station near the horizon.
+  function drawTiangong() {
+    const g = el("g", { transform: "translate(322 300) scale(0.5)" });
+    const parts = [
+      el("rect", { x: -70, y: -6, width: 140, height: 12, rx: 5, fill: "url(#metal)", stroke: "#33406b", "stroke-width": 3 }),
+      el("rect", { x: -74, y: -34, width: 30, height: 24, rx: 3, fill: "url(#panel)", stroke: "#22346b", "stroke-width": 3 }),
+      el("rect", { x: 44, y: -34, width: 30, height: 24, rx: 3, fill: "url(#panel)", stroke: "#22346b", "stroke-width": 3 }),
+      el("rect", { x: -74, y: 10, width: 30, height: 24, rx: 3, fill: "url(#panel)", stroke: "#22346b", "stroke-width": 3 }),
+      el("rect", { x: 44, y: 10, width: 30, height: 24, rx: 3, fill: "url(#panel)", stroke: "#22346b", "stroke-width": 3 }),
+      el("rect", { x: -22, y: -20, width: 44, height: 40, rx: 16, fill: "url(#metal)", stroke: "#2b3766", "stroke-width": 3.5 }),
+      el("circle", { cx: 0, cy: 0, r: 5, fill: "#ff9ad9", stroke: "#2b3766", "stroke-width": 2 }),
+    ];
+    parts.forEach((p) => g.appendChild(p));
+    const flag = el("g", {});
+    flag.appendChild(el("rect", { x: 24, y: -60, width: 78, height: 30, rx: 15, fill: "#ff7ad4" }));
+    const t = el("text", { x: 63, y: -39, "text-anchor": "middle", "font-size": 20, "font-weight": 800, fill: "#4a0033" });
+    t.textContent = "Tiangong";
+    flag.appendChild(t);
+    g.appendChild(flag);
+    tiangongG.appendChild(g);
+  }
+
+  /* Where each station's crew floats in the scene. */
+  const ANCHORS = {
+    iss: { cx: 200, cy: 175, rx: 122, ry: 96, iconScale: 1, core: [200, 178] },
+    tiangong: { cx: 322, cy: 300, rx: 42, ry: 34, iconScale: 0.62, core: [322, 300] },
+  };
+
+  function placeAstronauts() {
+    for (const id of Object.keys(STATIONS)) {
+      const anchor = ANCHORS[id];
+      if (!anchor) continue;
+      const members = CREW.filter((c) => c.station === id);
+      const n = members.length;
+      members.forEach((c, i) => {
+        const ang = (-90 + (360 / n) * i) * (Math.PI / 180);
+        const x = anchor.cx + anchor.rx * Math.cos(ang);
+        const y = anchor.cy + anchor.ry * Math.sin(ang);
+
+        // tether from the station core to the astronaut
+        tetherLayer.appendChild(el("line", { x1: anchor.core[0], y1: anchor.core[1], x2: x.toFixed(1), y2: y.toFixed(1) }));
+
+        // outer group = position (attribute transform), inner = gentle bob (CSS)
+        const outer = el("g", { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})`, class: "astro-icon" });
+        outer.setAttribute("tabindex", "0");
+        outer.setAttribute("role", "button");
+        outer.setAttribute("aria-label", `${c.name}, ${c.role} aboard ${STATIONS[id].short}`);
+
+        const bob = el("g", { class: "bob" });
+        bob.style.animationDelay = (i * 0.35).toFixed(2) + "s";
+        const s = anchor.iconScale;
+        bob.appendChild(el("circle", { r: 15 * s, fill: "#ffffff", opacity: 0.16 }));
+        bob.appendChild(el("circle", { r: 12 * s, fill: "url(#helmet)", stroke: "#2b3766", "stroke-width": 2 * s }));
+        const face = el("text", { x: 0, y: 0, "text-anchor": "middle", "dominant-baseline": "central", "font-size": 15 * s });
+        face.textContent = c.avatar;
+        bob.appendChild(face);
+
+        const label = el("text", { x: 0, y: 24 * s, "text-anchor": "middle", "font-size": 9, class: "astro-label" });
+        label.textContent = c.name.split(" ")[0];
+        bob.appendChild(label);
+
+        outer.appendChild(bob);
+        // tap (not drag) opens the detail sheet
+        outer.addEventListener("click", () => { if (!dragMoved) openSheet(c); });
+        outer.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSheet(c); } });
+        astroLayer.appendChild(outer);
+      });
     }
   }
 
-  function drawTrack(station) {
-    // Sample a chunk of the ground track around "now" for a dashed orbit line.
-    const now = new Date();
-    const segs = [[]];
-    for (let dm = -46; dm <= 46; dm += 2) {
-      const p = estimatePosition(station, new Date(now.getTime() + dm * 60000));
-      const cur = segs[segs.length - 1];
-      // Break the polyline when it wraps across the date line to avoid streaks.
-      if (cur.length) {
-        const prevLon = cur[cur.length - 1].lon;
-        if (Math.abs(p.lon - prevLon) > 180) segs.push([]);
+  /* ------------------------------------------------------------------ *
+   * Zoom & pan                                                          *
+   * ------------------------------------------------------------------ */
+  const view = { s: 1, tx: 0, ty: 0 };
+  const MIN_S = 1, MAX_S = 5;
+
+  function clampPan() {
+    view.tx = Math.min(0, Math.max(VB_W - VB_W * view.s, view.tx));
+    view.ty = Math.min(0, Math.max(VB_H - VB_H * view.s, view.ty));
+  }
+  function applyView() {
+    clampPan();
+    sceneG.setAttribute("transform", `translate(${view.tx.toFixed(2)} ${view.ty.toFixed(2)}) scale(${view.s.toFixed(3)})`);
+    scene.classList.toggle("zoomed", view.s > 1.6);
+  }
+  // Zoom by `factor` keeping the point (fx,fy) [in viewBox coords] fixed.
+  function zoomAround(factor, fx, fy) {
+    const newS = Math.min(MAX_S, Math.max(MIN_S, view.s * factor));
+    const px = (fx - view.tx) / view.s;
+    const py = (fy - view.ty) / view.s;
+    view.tx = fx - newS * px;
+    view.ty = fy - newS * py;
+    view.s = newS;
+    applyView();
+  }
+  // Convert a client (screen) point to viewBox coords.
+  function toVB(clientX, clientY) {
+    const r = scene.getBoundingClientRect();
+    return { x: ((clientX - r.left) / r.width) * VB_W, y: ((clientY - r.top) / r.height) * VB_H };
+  }
+  const vbPerPx = () => VB_W / scene.getBoundingClientRect().width;
+
+  // Pointer handling: 1 pointer = pan, 2 pointers = pinch zoom.
+  const pointers = new Map();
+  let lastPinch = null, dragMoved = false;
+
+  scene.addEventListener("pointerdown", (e) => {
+    scene.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    dragMoved = false;
+    if (pointers.size === 2) lastPinch = pinchState();
+  });
+  scene.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    const prev = pointers.get(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 2) {
+      const now = pinchState();
+      if (lastPinch) {
+        const mid = toVB(now.mx, now.my);
+        zoomAround(now.dist / lastPinch.dist, mid.x, mid.y);
+        view.tx += (now.mx - lastPinch.mx) * vbPerPx();
+        view.ty += (now.my - lastPinch.my) * vbPerPx();
+        applyView();
       }
-      segs[segs.length - 1].push(p);
+      lastPinch = now;
+      dragMoved = true;
+    } else if (pointers.size === 1) {
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+      if (Math.abs(dx) + Math.abs(dy) > 2) dragMoved = true;
+      view.tx += dx * vbPerPx();
+      view.ty += dy * vbPerPx();
+      applyView();
     }
-    for (const seg of segs) {
-      if (seg.length < 2) continue;
-      const line = document.createElementNS(SVGNS, "polyline");
-      line.setAttribute("points", seg.map((p) => `${lonToX(p.lon).toFixed(1)},${latToY(p.lat).toFixed(1)}`).join(" "));
-      line.setAttribute("stroke", station.color);
-      tracksG.appendChild(line);
-    }
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) lastPinch = null;
+  }
+  scene.addEventListener("pointerup", endPointer);
+  scene.addEventListener("pointercancel", endPointer);
+
+  function pinchState() {
+    const pts = [...pointers.values()];
+    const dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+    return { dist: Math.hypot(dx, dy) || 1, mx: (pts[0].x + pts[1].x) / 2, my: (pts[0].y + pts[1].y) / 2 };
   }
 
-  function drawStationMarker(station, pos) {
-    const x = lonToX(pos.lon);
-    const y = latToY(pos.lat);
-    const g = document.createElementNS(SVGNS, "g");
-    g.dataset.station = station.id;
+  scene.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const f = toVB(e.clientX, e.clientY);
+    zoomAround(e.deltaY < 0 ? 1.12 : 0.89, f.x, f.y);
+  }, { passive: false });
 
-    const pulse = document.createElementNS(SVGNS, "circle");
-    pulse.setAttribute("cx", x);
-    pulse.setAttribute("cy", y);
-    pulse.setAttribute("r", 3);
-    pulse.setAttribute("fill", station.color);
-    pulse.setAttribute("class", "station-pulse");
-    pulse.setAttribute("opacity", "0.6");
+  document.getElementById("zoomIn").addEventListener("click", () => zoomAround(1.4, VB_W / 2, 190));
+  document.getElementById("zoomOut").addEventListener("click", () => zoomAround(1 / 1.4, VB_W / 2, 190));
+  document.getElementById("zoomReset").addEventListener("click", () => { view.s = 1; view.tx = 0; view.ty = 0; applyView(); });
 
-    const dot = document.createElementNS(SVGNS, "circle");
-    dot.setAttribute("cx", x);
-    dot.setAttribute("cy", y);
-    dot.setAttribute("r", 3.4);
-    dot.setAttribute("fill", station.color);
-    dot.setAttribute("stroke", "#0d1330");
-    dot.setAttribute("stroke-width", "1");
-    dot.setAttribute("class", "station-dot");
+  /* ------------------------------------------------------------------ *
+   * Caption, legend, roster, detail sheet                               *
+   * ------------------------------------------------------------------ */
+  const crewCount = (id) => CREW.filter((c) => c.station === id).length;
 
-    const label = document.createElementNS(SVGNS, "text");
-    label.setAttribute("x", x);
-    label.setAttribute("y", y - 6);
-    label.setAttribute("text-anchor", "middle");
-    label.setAttribute("font-size", "7");
-    label.setAttribute("font-weight", "700");
-    label.setAttribute("fill", "#fff");
-    label.setAttribute("stroke", "#0d1330");
-    label.setAttribute("stroke-width", "0.5");
-    label.setAttribute("paint-order", "stroke");
-    label.textContent = station.short;
-
-    g.appendChild(pulse);
-    g.appendChild(dot);
-    g.appendChild(label);
-    stationsG.appendChild(g);
-  }
-
-  function crewCount(stationId) {
-    return CREW.filter((c) => c.station === stationId).length;
+  function updateCaption() {
+    const iss = STATIONS.iss;
+    const pos = estimatePosition(iss, new Date());
+    document.getElementById("sceneCaption").innerHTML =
+      `🛰️ Right now the <b>ISS</b> is cruising <b>${describeLocation(pos.lon, pos.lat)}</b> with ${crewCount("iss")} crew aboard.`;
   }
 
   function buildLegend() {
@@ -193,27 +292,28 @@
       sw.style.background = s.color;
       const txt = document.createElement("span");
       txt.textContent = `${s.emoji} ${s.short} · ${crewCount(id)} aboard`;
-      item.appendChild(sw);
-      item.appendChild(txt);
+      item.append(sw, txt);
       legend.appendChild(item);
     }
   }
 
-  /* --- Roster --- */
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[ch]));
+  }
+
   function buildRoster() {
     const list = document.getElementById("astronautList");
     list.innerHTML = "";
-
     for (const id of Object.keys(STATIONS)) {
       const station = STATIONS[id];
       const members = CREW.filter((c) => c.station === id);
       if (!members.length) continue;
-
       const header = document.createElement("li");
       header.className = "group-header";
       header.innerHTML = `<span>${station.emoji} ${station.name}</span><span class="badge">${members.length} crew</span>`;
       list.appendChild(header);
-
       members.forEach((c) => {
         const li = document.createElement("li");
         const btn = document.createElement("button");
@@ -234,13 +334,6 @@
     }
   }
 
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (ch) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[ch]));
-  }
-
-  /* --- Detail sheet --- */
   const backdrop = document.getElementById("sheetBackdrop");
   const sheet = document.getElementById("detailSheet");
   const sheetBody = document.getElementById("sheetBody");
@@ -251,7 +344,6 @@
     const where = describeLocation(pos.lon, pos.lat);
     const latStr = `${Math.abs(pos.lat).toFixed(1)}°${pos.lat >= 0 ? "N" : "S"}`;
     const lonStr = `${Math.abs(pos.lon).toFixed(1)}°${pos.lon >= 0 ? "E" : "W"}`;
-
     sheetBody.innerHTML = `
       <div class="sheet-hero">
         <span class="sheet-avatar">${c.avatar}</span>
@@ -271,52 +363,38 @@
         📍 Right now, ${escapeHtml(c.name.split(" ")[0])} is estimated to be flying <b>${where}</b>,
         near <b>${latStr}, ${lonStr}</b> — moving too fast to wave back!
       </div>`;
-
     backdrop.hidden = false;
     sheet.hidden = false;
   }
-
-  function closeSheet() {
-    backdrop.hidden = true;
-    sheet.hidden = true;
-  }
+  function closeSheet() { backdrop.hidden = true; sheet.hidden = true; }
   document.getElementById("sheetClose").addEventListener("click", closeSheet);
   backdrop.addEventListener("click", closeSheet);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 
-  /* --- Live-ish updates --- */
-  function refreshStations() {
-    stationsG.innerHTML = "";
-    tracksG.innerHTML = "";
-    const now = new Date();
-    for (const id of Object.keys(STATIONS)) {
-      const station = STATIONS[id];
-      drawTrack(station);
-      drawStationMarker(station, estimatePosition(station, now));
-    }
+  /* Slowly spin Earth's continents so the globe feels alive. */
+  let spin = 0;
+  function spinEarth() {
+    spin = (spin + 0.25) % 360;
+    continents.setAttribute("transform", `rotate(${spin.toFixed(2)} 200 1010)`);
   }
 
-  function updateTimestamp() {
-    const el = document.getElementById("updatedAt");
-    const now = new Date();
-    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    el.textContent = `positions ~ ${time}`;
-  }
-
-  /* --- Init --- */
+  /* ------------------------------------------------------------------ *
+   * Init                                                                *
+   * ------------------------------------------------------------------ */
   function init() {
     document.getElementById("countNum").textContent = CREW.length;
+    document.getElementById("updatedAt").textContent = "crew as of " + (window.ROSTER_UPDATED || "");
+    drawStars();
     drawContinents();
+    drawTiangong();
+    placeAstronauts();
     buildLegend();
     buildRoster();
-    refreshStations();
-    updateTimestamp();
+    updateCaption();
+    applyView();
 
-    // Gently drift the stations every 20s so it feels alive.
-    setInterval(() => {
-      refreshStations();
-      updateTimestamp();
-    }, 20000);
+    setInterval(spinEarth, 120);          // gentle Earth spin
+    setInterval(updateCaption, 20000);    // refresh "currently over…"
   }
 
   if (document.readyState === "loading") {

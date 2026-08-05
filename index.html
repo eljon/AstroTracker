@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0b1026" />
-  <meta name="description" content="Adam's Astronaut Tracker — a cartoon map of where astronauts are right now, floating above the Earth." />
+  <meta name="description" content="Adam's Astronaut Tracker — a cartoon view of astronauts floating around the ISS above the Earth." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Astronaut Tracker" />
@@ -22,7 +22,7 @@
       <span class="rocket" aria-hidden="true">🚀</span>
       <div>
         <h1>Adam's Astronaut Tracker</h1>
-        <p class="subtitle">Where are the humans in space right now?</p>
+        <p class="subtitle">Astronauts floating in space right now</p>
       </div>
     </div>
     <div class="people-count" id="peopleCount" title="People currently in space">
@@ -32,31 +32,121 @@
   </header>
 
   <main>
-    <section class="map-card" aria-label="Cartoon world map showing astronaut locations">
-      <div class="map-shell">
-        <svg id="worldMap" viewBox="0 0 360 180" preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map">
-          <!-- Ocean -->
-          <rect x="0" y="0" width="360" height="180" fill="url(#ocean)" />
+    <section class="scene-card" aria-label="Astronauts in space around the International Space Station">
+      <div class="scene-wrap" id="sceneWrap">
+        <svg id="spaceScene" viewBox="0 0 400 480" preserveAspectRatio="xMidYMid meet"
+             role="img" aria-label="Cartoon view of astronauts floating around the International Space Station above the curved edge of Earth">
           <defs>
-            <linearGradient id="ocean" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#2a7fd4" />
-              <stop offset="100%" stop-color="#1a5aa8" />
-            </linearGradient>
-            <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#fff6c8" stop-opacity="0.9" />
-              <stop offset="100%" stop-color="#fff6c8" stop-opacity="0" />
+            <radialGradient id="spaceBg" cx="35%" cy="28%" r="90%">
+              <stop offset="0%" stop-color="#1b2350" />
+              <stop offset="55%" stop-color="#0c1030" />
+              <stop offset="100%" stop-color="#05061a" />
             </radialGradient>
+            <radialGradient id="earthGrad" cx="38%" cy="26%" r="80%">
+              <stop offset="0%" stop-color="#6fb7ff" />
+              <stop offset="55%" stop-color="#2f7fd6" />
+              <stop offset="100%" stop-color="#0f3f86" />
+            </radialGradient>
+            <radialGradient id="earthShade" cx="38%" cy="26%" r="75%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+              <stop offset="45%" stop-color="#ffffff" stop-opacity="0" />
+              <stop offset="100%" stop-color="#02132f" stop-opacity="0.55" />
+            </radialGradient>
+            <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f4f6ff" />
+              <stop offset="100%" stop-color="#b9c1dd" />
+            </linearGradient>
+            <linearGradient id="helmet" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#eaf3ff" />
+              <stop offset="100%" stop-color="#b7ccf0" />
+            </linearGradient>
+            <pattern id="panel" width="12" height="12" patternUnits="userSpaceOnUse">
+              <rect width="12" height="12" fill="#2f6fd6" />
+              <path d="M0 0V12M6 0V12M0 6H12" stroke="#1c4c9e" stroke-width="1" />
+              <rect width="12" height="12" fill="none" stroke="#173a78" stroke-width="0.6" />
+            </pattern>
+            <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDev="7" />
+            </filter>
+            <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDev="2" />
+            </filter>
+            <clipPath id="earthClip"><circle cx="200" cy="1010" r="770" /></clipPath>
           </defs>
-          <!-- Cartoon continents (simplified blobs) -->
-          <g id="land" fill="#7ac77a" stroke="#5aa85a" stroke-width="0.8" stroke-linejoin="round"></g>
-          <!-- Orbit ground tracks -->
-          <g id="tracks" fill="none" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.7"></g>
-          <!-- Station markers get injected here -->
-          <g id="stations"></g>
+
+          <!-- Deep space (not zoomed) -->
+          <rect x="0" y="0" width="400" height="480" fill="url(#spaceBg)" />
+          <g id="starLayer"></g>
+
+          <!-- Everything below pans & zooms together -->
+          <g id="sceneG">
+            <!-- Earth, partially seen at the bottom -->
+            <g id="earth">
+              <circle cx="200" cy="1010" r="792" fill="#6cc4ff" opacity="0.55" filter="url(#glow)" />
+              <circle cx="200" cy="1010" r="770" fill="url(#earthGrad)" stroke="#0d2f63" stroke-width="2" />
+              <g clip-path="url(#earthClip)">
+                <g id="continents" fill="#79c77a" stroke="#54a457" stroke-width="2" stroke-linejoin="round"></g>
+                <circle cx="200" cy="1010" r="770" fill="url(#earthShade)" />
+              </g>
+            </g>
+
+            <!-- Tiangong: smaller, further away, near the horizon -->
+            <g id="tiangongG"></g>
+
+            <!-- Tethers sit behind the astronauts -->
+            <g id="tetherLayer" stroke="#cfe0ff" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.7" fill="none"></g>
+
+            <!-- The ISS: the star of the show -->
+            <g id="issG" class="iss-sway">
+              <!-- main truss -->
+              <rect x="70" y="168" width="260" height="9" rx="4" fill="url(#metal)" stroke="#33406b" stroke-width="2" />
+              <!-- left solar wings -->
+              <rect x="34" y="120" width="60" height="40" rx="3" fill="url(#panel)" stroke="#22346b" stroke-width="2" />
+              <rect x="34" y="186" width="60" height="40" rx="3" fill="url(#panel)" stroke="#22346b" stroke-width="2" />
+              <rect x="90" y="150" width="10" height="46" rx="3" fill="url(#metal)" stroke="#33406b" stroke-width="1.5" />
+              <!-- right solar wings -->
+              <rect x="306" y="120" width="60" height="40" rx="3" fill="url(#panel)" stroke="#22346b" stroke-width="2" />
+              <rect x="306" y="186" width="60" height="40" rx="3" fill="url(#panel)" stroke="#22346b" stroke-width="2" />
+              <rect x="300" y="150" width="10" height="46" rx="3" fill="url(#metal)" stroke="#33406b" stroke-width="1.5" />
+              <!-- radiators -->
+              <rect x="150" y="150" width="34" height="7" rx="2" fill="#eef2ff" stroke="#33406b" stroke-width="1.2" />
+              <rect x="216" y="150" width="34" height="7" rx="2" fill="#eef2ff" stroke="#33406b" stroke-width="1.2" />
+              <!-- node modules along the truss -->
+              <rect x="126" y="158" width="40" height="30" rx="13" fill="url(#metal)" stroke="#33406b" stroke-width="2" />
+              <rect x="234" y="158" width="40" height="30" rx="13" fill="url(#metal)" stroke="#33406b" stroke-width="2" />
+              <!-- central habitat -->
+              <rect x="168" y="150" width="64" height="46" rx="20" fill="url(#metal)" stroke="#2b3766" stroke-width="2.5" />
+              <rect x="190" y="120" width="20" height="40" rx="9" fill="url(#metal)" stroke="#33406b" stroke-width="2" />
+              <rect x="190" y="188" width="20" height="42" rx="9" fill="url(#metal)" stroke="#33406b" stroke-width="2" />
+              <!-- windows -->
+              <circle cx="185" cy="173" r="4.5" fill="#8fd0ff" stroke="#2b3766" stroke-width="1.2" />
+              <circle cx="200" cy="173" r="4.5" fill="#8fd0ff" stroke="#2b3766" stroke-width="1.2" />
+              <circle cx="215" cy="173" r="4.5" fill="#8fd0ff" stroke="#2b3766" stroke-width="1.2" />
+              <!-- docked capsule -->
+              <path d="M191 230 h18 l-3 16 h-12 z" fill="#f4f6ff" stroke="#33406b" stroke-width="2" stroke-linejoin="round" />
+              <!-- little name flag -->
+              <g class="iss-flag">
+                <rect x="250" y="128" width="34" height="16" rx="8" fill="#ffd34d" />
+                <text x="267" y="140" text-anchor="middle" font-size="10" font-weight="800" fill="#3a2b00">ISS</text>
+              </g>
+            </g>
+
+            <!-- Astronaut icons get injected here -->
+            <g id="astroLayer"></g>
+          </g>
         </svg>
+
+        <div class="zoom-controls" role="group" aria-label="Zoom controls">
+          <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+          <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+          <button id="zoomReset" type="button" aria-label="Reset view">⤢</button>
+        </div>
+        <div class="scene-hint" id="sceneHint">Pinch / scroll to zoom · drag to look around · tap an astronaut</div>
       </div>
+
+      <p class="scene-caption" id="sceneCaption"></p>
       <div class="map-legend" id="mapLegend"></div>
-      <p class="estimate-note">✨ Positions are a friendly best-estimate cartoon, not exact real-time tracking.</p>
+      <p class="estimate-note">✨ A friendly best-estimate cartoon, not exact real-time tracking.</p>
     </section>
 
     <section class="roster" aria-label="Astronaut roster">
