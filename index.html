@@ -12,7 +12,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%80%3C/text%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%80%3C/text%3E%3C/svg%3E" />
   <title>Adam's Astronaut Tracker</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=2" />
 </head>
 <body>
   <div class="stars" aria-hidden="true"></div>
@@ -71,7 +71,7 @@
             <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
               <feGaussianBlur stdDev="2" />
             </filter>
-            <clipPath id="earthClip"><circle cx="200" cy="1010" r="770" /></clipPath>
+            <clipPath id="earthClip"><circle cx="200" cy="1120" r="770" /></clipPath>
           </defs>
 
           <!-- Deep space (not zoomed) -->
@@ -82,11 +82,11 @@
           <g id="sceneG">
             <!-- Earth, partially seen at the bottom -->
             <g id="earth">
-              <circle cx="200" cy="1010" r="792" fill="#6cc4ff" opacity="0.55" filter="url(#glow)" />
-              <circle cx="200" cy="1010" r="770" fill="url(#earthGrad)" stroke="#0d2f63" stroke-width="2" />
+              <circle cx="200" cy="1120" r="792" fill="#6cc4ff" opacity="0.55" filter="url(#glow)" />
+              <circle cx="200" cy="1120" r="770" fill="url(#earthGrad)" stroke="#0d2f63" stroke-width="2" />
               <g clip-path="url(#earthClip)">
                 <g id="continents" fill="#79c77a" stroke="#54a457" stroke-width="2" stroke-linejoin="round"></g>
-                <circle cx="200" cy="1010" r="770" fill="url(#earthShade)" />
+                <circle cx="200" cy="1120" r="770" fill="url(#earthShade)" />
               </g>
             </g>
 
@@ -169,7 +169,7 @@
     <p>Made for Adam · Keep looking up 🌙</p>
   </footer>
 
-  <script src="data.js"></script>
-  <script src="app.js"></script>
+  <script src="data.js?v=2"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

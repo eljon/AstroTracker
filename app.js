@@ -87,7 +87,7 @@
 
   // A ring of cartoon landmass blobs sitting just inside Earth's visible edge.
   function drawContinents() {
-    const cx = 200, cy = 1010, r = 748; // just inside the Earth body radius
+    const cx = 200, cy = 1120, r = 748; // just inside the Earth body radius
     const blobs = [
       { a: -128, w: 46, h: 30 }, { a: -96, w: 30, h: 22 }, { a: -70, w: 40, h: 26 },
       { a: -40, w: 28, h: 20 }, { a: -8, w: 44, h: 30 }, { a: 24, w: 26, h: 18 },
@@ -375,7 +375,7 @@
   let spin = 0;
   function spinEarth() {
     spin = (spin + 0.25) % 360;
-    continents.setAttribute("transform", `rotate(${spin.toFixed(2)} 200 1010)`);
+    continents.setAttribute("transform", `rotate(${spin.toFixed(2)} 200 1120)`);
   }
 
   /* ------------------------------------------------------------------ *
