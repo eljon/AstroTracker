@@ -1,10 +1,10 @@
 /*
  * Adam's Astronaut Tracker — app logic
  *
- * Draws a cartoon "you are in orbit" scene: the International Space Station up
- * close as the star of the show, the curved edge of Earth peeking in below,
- * and astronaut icons floating at their spots around each station. The whole
- * scene can be pinched / scrolled / dragged to zoom in for a closer look.
+ * A cartoon "you are in orbit" scene you can fly a camera through: zoom all
+ * the way out to see the whole round Earth with the stations as tiny specks,
+ * or zoom right in to watch the astronauts spacewalking on tethers just
+ * outside the International Space Station.
  *
  * It also estimates where each station is currently passing over Earth with a
  * simple orbit model — a playful best guess, not precise tracking.
@@ -16,6 +16,7 @@
   const SVGNS = "http://www.w3.org/2000/svg";
   const EARTH_ROTATION_MIN = 1436; // minutes for Earth to spin 360°
   const VB_W = 400, VB_H = 480;    // SVG viewBox size
+  const EARTH = { cx: 200, cy: 900, r: 470 };
 
   /* ------------------------------------------------------------------ *
    * Orbit estimate (used for the "currently over…" caption & the sheet) *
@@ -63,6 +64,7 @@
   const sceneG = document.getElementById("sceneG");
   const starLayer = document.getElementById("starLayer");
   const continents = document.getElementById("continents");
+  const cloudsG = document.getElementById("clouds");
   const tetherLayer = document.getElementById("tetherLayer");
   const astroLayer = document.getElementById("astroLayer");
   const tiangongG = document.getElementById("tiangongG");
@@ -74,9 +76,9 @@
   }
 
   function drawStars() {
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 90; i++) {
       const x = Math.random() * VB_W;
-      const y = Math.random() * (VB_H * 0.62); // keep stars in the sky, not on Earth
+      const y = Math.random() * VB_H;
       const r = Math.random() * 1.2 + 0.3;
       const s = el("circle", { cx: x.toFixed(1), cy: y.toFixed(1), r: r.toFixed(1), fill: "#fff" });
       s.setAttribute("opacity", (Math.random() * 0.6 + 0.3).toFixed(2));
@@ -85,21 +87,6 @@
     }
   }
 
-  // A ring of cartoon landmass blobs sitting just inside Earth's visible edge.
-  function drawContinents() {
-    const cx = 200, cy = 1120, r = 748; // just inside the Earth body radius
-    const blobs = [
-      { a: -128, w: 46, h: 30 }, { a: -96, w: 30, h: 22 }, { a: -70, w: 40, h: 26 },
-      { a: -40, w: 28, h: 20 }, { a: -8, w: 44, h: 30 }, { a: 24, w: 26, h: 18 },
-    ];
-    for (const b of blobs) {
-      const rad = (b.a * Math.PI) / 180;
-      const x = cx + r * Math.sin(rad);
-      const y = cy - r * Math.cos(rad);
-      const blob = el("path", { d: blobPath(x, y, b.w, b.h) });
-      continents.appendChild(blob);
-    }
-  }
   // A lumpy rounded blob centred on (x,y).
   function blobPath(x, y, w, h) {
     return `M ${x - w},${y}
@@ -109,9 +96,48 @@
       C ${x - w * 0.5},${y + h} ${x - w},${y + h * 0.6} ${x - w},${y} Z`;
   }
 
-  // A little cartoon Tiangong station near the horizon.
+  // Cartoon continents scattered across the round planet (offsets are for a
+  // 250px globe, then scaled to whatever radius the Earth actually is).
+  function drawContinents() {
+    const f = EARTH.r / 250;
+    const land = [
+      [-70, -120, 44, 28], [16, -150, 32, 20], [-128, -34, 40, 52], [-38, -46, 52, 60],
+      [86, -74, 40, 34], [128, 6, 28, 40], [-92, 92, 44, 30], [4, 74, 56, 40],
+      [78, 116, 40, 28], [156, -28, 22, 30],
+    ];
+    for (const [dx, dy, w, h] of land) {
+      continents.appendChild(el("path", { d: blobPath(EARTH.cx + dx * f, EARTH.cy + dy * f, w * f, h * f) }));
+    }
+  }
+
+  // Fluffy clouds that drift across the globe (clipped to the disc, so they
+  // slip on and off the edge seamlessly).
+  const clouds = [];
+  function drawClouds() {
+    const f = EARTH.r / 250;
+    const specs = [
+      { dy: -150, speed: 0.30, op: 0.5, k: 1.4 },
+      { dy: -40, speed: 0.20, op: 0.4, k: 1.9 },
+      { dy: 90, speed: 0.36, op: 0.45, k: 1.2 },
+      { dy: -90, speed: 0.16, op: 0.35, k: 1.6 },
+      { dy: 40, speed: 0.24, op: 0.4, k: 1.5 },
+    ];
+    specs.forEach((sp, i) => {
+      const g = el("g", { opacity: sp.op });
+      const k = sp.k * f;
+      [[0, 0, 16 * k, 9 * k], [15 * k, 3 * k, 12 * k, 7 * k], [-15 * k, 3 * k, 12 * k, 7 * k], [7 * k, -5 * k, 10 * k, 6 * k]]
+        .forEach(([dx, dy, rx, ry]) => g.appendChild(el("ellipse", { cx: dx, cy: dy, rx, ry })));
+      const y = EARTH.cy + sp.dy * f;
+      const x = EARTH.cx - EARTH.r * 0.8 + ((i * 210) % (EARTH.r * 1.7));
+      clouds.push({ g, x, y, speed: sp.speed });
+      g.setAttribute("transform", `translate(${x} ${y})`);
+      cloudsG.appendChild(g);
+    });
+  }
+
+  // A little cartoon Tiangong station off to one side.
   function drawTiangong() {
-    const g = el("g", { transform: "translate(322 300) scale(0.5)" });
+    const g = el("g", { transform: "translate(330 112) scale(0.5)" });
     const parts = [
       el("rect", { x: -70, y: -6, width: 140, height: 12, rx: 5, fill: "url(#metal)", stroke: "#33406b", "stroke-width": 3 }),
       el("rect", { x: -74, y: -34, width: 30, height: 24, rx: 3, fill: "url(#panel)", stroke: "#22346b", "stroke-width": 3 }),
@@ -131,47 +157,50 @@
     tiangongG.appendChild(g);
   }
 
-  /* Where each station's crew floats in the scene. */
-  const ANCHORS = {
-    iss: { cx: 200, cy: 175, rx: 122, ry: 96, iconScale: 1, core: [200, 178] },
-    tiangong: { cx: 322, cy: 300, rx: 42, ry: 34, iconScale: 0.62, core: [322, 300] },
+  /* Spacewalk spots hugging each station (offsets from the station core). */
+  const EVA = {
+    iss: {
+      core: [200, 255], scale: 1, trussY: 250, trussX: [80, 320],
+      spots: [[-150, -16], [150, -16], [-92, -48], [92, -48], [-92, 50], [92, 50], [0, -66], [0, 60], [-46, -10], [46, -10]],
+    },
+    tiangong: {
+      core: [330, 112], scale: 0.62, trussY: 112, trussX: [312, 348],
+      spots: [[-40, -6], [40, -6], [0, 26], [-24, -30], [24, -30]],
+    },
   };
 
   function placeAstronauts() {
     for (const id of Object.keys(STATIONS)) {
-      const anchor = ANCHORS[id];
-      if (!anchor) continue;
+      const eva = EVA[id];
+      if (!eva) continue;
       const members = CREW.filter((c) => c.station === id);
-      const n = members.length;
       members.forEach((c, i) => {
-        const ang = (-90 + (360 / n) * i) * (Math.PI / 180);
-        const x = anchor.cx + anchor.rx * Math.cos(ang);
-        const y = anchor.cy + anchor.ry * Math.sin(ang);
+        const off = eva.spots[i % eva.spots.length];
+        const x = eva.core[0] + off[0];
+        const y = eva.core[1] + off[1];
 
-        // tether from the station core to the astronaut
-        tetherLayer.appendChild(el("line", { x1: anchor.core[0], y1: anchor.core[1], x2: x.toFixed(1), y2: y.toFixed(1) }));
+        // tether anchors onto the nearest bit of the station structure
+        const ax = Math.max(eva.trussX[0], Math.min(eva.trussX[1], x));
+        tetherLayer.appendChild(el("line", { x1: ax, y1: eva.trussY, x2: x.toFixed(1), y2: y.toFixed(1) }));
 
-        // outer group = position (attribute transform), inner = gentle bob (CSS)
+        // outer group = position (attribute transform); inner = float (CSS)
         const outer = el("g", { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})`, class: "astro-icon" });
         outer.setAttribute("tabindex", "0");
         outer.setAttribute("role", "button");
         outer.setAttribute("aria-label", `${c.name}, ${c.role} aboard ${STATIONS[id].short}`);
 
-        const bob = el("g", { class: "bob" });
-        bob.style.animationDelay = (i * 0.35).toFixed(2) + "s";
-        const s = anchor.iconScale;
-        bob.appendChild(el("circle", { r: 15 * s, fill: "#ffffff", opacity: 0.16 }));
-        bob.appendChild(el("circle", { r: 12 * s, fill: "url(#helmet)", stroke: "#2b3766", "stroke-width": 2 * s }));
-        const face = el("text", { x: 0, y: 0, "text-anchor": "middle", "dominant-baseline": "central", "font-size": 15 * s });
+        const inner = el("g", { class: "eva eva-" + (i % 4) });
+        inner.style.animationDelay = (i * 0.4).toFixed(2) + "s";
+        const s = eva.scale;
+        inner.appendChild(el("circle", { r: 14 * s, fill: "#ffffff", opacity: 0.16 }));
+        const face = el("text", { x: 0, y: 0, "text-anchor": "middle", "dominant-baseline": "central", "font-size": 20 * s });
         face.textContent = c.avatar;
-        bob.appendChild(face);
-
+        inner.appendChild(face);
         const label = el("text", { x: 0, y: 24 * s, "text-anchor": "middle", "font-size": 9, class: "astro-label" });
         label.textContent = c.name.split(" ")[0];
-        bob.appendChild(label);
+        inner.appendChild(label);
 
-        outer.appendChild(bob);
-        // tap (not drag) opens the detail sheet
+        outer.appendChild(inner);
         outer.addEventListener("click", () => { if (!dragMoved) openSheet(c); });
         outer.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSheet(c); } });
         astroLayer.appendChild(outer);
@@ -180,38 +209,43 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * Zoom & pan                                                          *
+   * Camera: zoom (incl. below 1 = pull right back) & pan               *
    * ------------------------------------------------------------------ */
-  const view = { s: 1, tx: 0, ty: 0 };
-  const MIN_S = 1, MAX_S = 5;
+  const WORLD = { x0: -300, x1: 700, y0: 150, y1: 1400 };
+  const MIN_S = Math.min(VB_W / (WORLD.x1 - WORLD.x0), VB_H / (WORLD.y1 - WORLD.y0)); // fits whole planet
+  const MAX_S = 3.4;
+  const HOME = { s: 1.2, cx: 200, cy: 250 }; // opening shot: the whole ISS with its crew
+  const view = { s: HOME.s, tx: 0, ty: 0 };
 
-  function clampPan() {
-    view.tx = Math.min(0, Math.max(VB_W - VB_W * view.s, view.tx));
-    view.ty = Math.min(0, Math.max(VB_H - VB_H * view.s, view.ty));
+  function clampAxis(t, viewLen, w0, w1, s) {
+    if (viewLen / s >= (w1 - w0)) return (viewLen - (w0 + w1) * s) / 2; // world smaller than view → centre
+    return Math.min(-w0 * s, Math.max(viewLen - w1 * s, t));
   }
   function applyView() {
-    clampPan();
+    view.tx = clampAxis(view.tx, VB_W, WORLD.x0, WORLD.x1, view.s);
+    view.ty = clampAxis(view.ty, VB_H, WORLD.y0, WORLD.y1, view.s);
     sceneG.setAttribute("transform", `translate(${view.tx.toFixed(2)} ${view.ty.toFixed(2)}) scale(${view.s.toFixed(3)})`);
-    scene.classList.toggle("zoomed", view.s > 1.6);
+    scene.classList.toggle("zoomed", view.s > 1.7);
   }
-  // Zoom by `factor` keeping the point (fx,fy) [in viewBox coords] fixed.
+  function centerOn(cx, cy, s) {
+    view.s = Math.min(MAX_S, Math.max(MIN_S, s));
+    view.tx = VB_W / 2 - view.s * cx;
+    view.ty = VB_H / 2 - view.s * cy;
+    applyView();
+  }
   function zoomAround(factor, fx, fy) {
     const newS = Math.min(MAX_S, Math.max(MIN_S, view.s * factor));
-    const px = (fx - view.tx) / view.s;
-    const py = (fy - view.ty) / view.s;
-    view.tx = fx - newS * px;
-    view.ty = fy - newS * py;
+    view.tx = fx - (newS / view.s) * (fx - view.tx);
+    view.ty = fy - (newS / view.s) * (fy - view.ty);
     view.s = newS;
     applyView();
   }
-  // Convert a client (screen) point to viewBox coords.
   function toVB(clientX, clientY) {
     const r = scene.getBoundingClientRect();
     return { x: ((clientX - r.left) / r.width) * VB_W, y: ((clientY - r.top) / r.height) * VB_H };
   }
   const vbPerPx = () => VB_W / scene.getBoundingClientRect().width;
 
-  // Pointer handling: 1 pointer = pan, 2 pointers = pinch zoom.
   const pointers = new Map();
   let lastPinch = null, dragMoved = false;
 
@@ -225,7 +259,6 @@
     if (!pointers.has(e.pointerId)) return;
     const prev = pointers.get(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
     if (pointers.size === 2) {
       const now = pinchState();
       if (lastPinch) {
@@ -245,28 +278,23 @@
       applyView();
     }
   });
-  function endPointer(e) {
-    pointers.delete(e.pointerId);
-    if (pointers.size < 2) lastPinch = null;
-  }
+  function endPointer(e) { pointers.delete(e.pointerId); if (pointers.size < 2) lastPinch = null; }
   scene.addEventListener("pointerup", endPointer);
   scene.addEventListener("pointercancel", endPointer);
-
   function pinchState() {
     const pts = [...pointers.values()];
     const dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
     return { dist: Math.hypot(dx, dy) || 1, mx: (pts[0].x + pts[1].x) / 2, my: (pts[0].y + pts[1].y) / 2 };
   }
-
   scene.addEventListener("wheel", (e) => {
     e.preventDefault();
     const f = toVB(e.clientX, e.clientY);
     zoomAround(e.deltaY < 0 ? 1.12 : 0.89, f.x, f.y);
   }, { passive: false });
 
-  document.getElementById("zoomIn").addEventListener("click", () => zoomAround(1.4, VB_W / 2, 190));
-  document.getElementById("zoomOut").addEventListener("click", () => zoomAround(1 / 1.4, VB_W / 2, 190));
-  document.getElementById("zoomReset").addEventListener("click", () => { view.s = 1; view.tx = 0; view.ty = 0; applyView(); });
+  document.getElementById("zoomIn").addEventListener("click", () => zoomAround(1.5, VB_W / 2, VB_H / 2));
+  document.getElementById("zoomOut").addEventListener("click", () => zoomAround(1 / 1.5, VB_W / 2, VB_H / 2));
+  document.getElementById("zoomReset").addEventListener("click", () => centerOn(HOME.cx, HOME.cy, HOME.s));
 
   /* ------------------------------------------------------------------ *
    * Caption, legend, roster, detail sheet                               *
@@ -274,8 +302,7 @@
   const crewCount = (id) => CREW.filter((c) => c.station === id).length;
 
   function updateCaption() {
-    const iss = STATIONS.iss;
-    const pos = estimatePosition(iss, new Date());
+    const pos = estimatePosition(STATIONS.iss, new Date());
     document.getElementById("sceneCaption").innerHTML =
       `🛰️ Right now the <b>ISS</b> is cruising <b>${describeLocation(pos.lon, pos.lat)}</b> with ${crewCount("iss")} crew aboard.`;
   }
@@ -371,11 +398,14 @@
   backdrop.addEventListener("click", closeSheet);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 
-  /* Slowly spin Earth's continents so the globe feels alive. */
-  let spin = 0;
-  function spinEarth() {
-    spin = (spin + 0.25) % 360;
-    continents.setAttribute("transform", `rotate(${spin.toFixed(2)} 200 1120)`);
+  /* Drift the clouds so the planet feels alive. */
+  function animateGlobe() {
+    const edge = EARTH.r + 60;
+    for (const c of clouds) {
+      c.x -= c.speed;
+      if (c.x < EARTH.cx - edge) c.x = EARTH.cx + edge;
+      c.g.setAttribute("transform", `translate(${c.x.toFixed(1)} ${c.y})`);
+    }
   }
 
   /* ------------------------------------------------------------------ *
@@ -386,14 +416,15 @@
     document.getElementById("updatedAt").textContent = "crew as of " + (window.ROSTER_UPDATED || "");
     drawStars();
     drawContinents();
+    drawClouds();
     drawTiangong();
     placeAstronauts();
     buildLegend();
     buildRoster();
     updateCaption();
-    applyView();
+    centerOn(HOME.cx, HOME.cy, HOME.s);
 
-    setInterval(spinEarth, 120);          // gentle Earth spin
+    setInterval(animateGlobe, 60);        // drifting clouds
     setInterval(updateCaption, 20000);    // refresh "currently over…"
   }
 
