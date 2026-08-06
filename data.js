@@ -15,7 +15,7 @@
  * the <link>/<script> tags in index.html — bump BOTH together on every deploy.
  * When they match, the version on screen is exactly the version that loaded.
  */
-window.APP_VERSION = "1.4.1";
+window.APP_VERSION = "1.4.2";
 window.APP_BUILD = "2026-08-06";
 
 // The last time a human updated this roster by hand. Shown in the app.
