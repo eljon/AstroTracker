@@ -7,6 +7,17 @@
  * CREW arrays whenever a new mission launches or a crew comes home.
  */
 
+/*
+ * App version + build date, shown in the footer so you can confirm the page
+ * you're looking at is the latest one that was deployed.
+ *
+ * IMPORTANT: keep APP_VERSION in sync with the "?v=" cache-busting token on
+ * the <link>/<script> tags in index.html — bump BOTH together on every deploy.
+ * When they match, the version on screen is exactly the version that loaded.
+ */
+window.APP_VERSION = "1.4.0";
+window.APP_BUILD = "2026-08-06";
+
 // The last time a human updated this roster by hand. Shown in the app.
 window.ROSTER_UPDATED = "2026-08-01";
 

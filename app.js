@@ -414,6 +414,9 @@
   function init() {
     document.getElementById("countNum").textContent = CREW.length;
     document.getElementById("updatedAt").textContent = "crew as of " + (window.ROSTER_UPDATED || "");
+    const ver = "v" + (window.APP_VERSION || "?") + (window.APP_BUILD ? " · built " + window.APP_BUILD : "");
+    document.getElementById("appVersion").textContent = ver;
+    console.log("Adam's Astronaut Tracker — " + ver);
     drawStars();
     drawContinents();
     drawClouds();
